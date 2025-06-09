@@ -45,11 +45,6 @@ class AIService
         'gemini' => [
             'base_url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
             'models' => [
-                'gemini-1.5-flash' => 'gemini-1.5-flash',
-                'gemini-2.0-flash-exp' => 'gemini-2.0-flash-exp',
-                'gemini-2.0-flash-lite-exp' => 'gemini-2.0-flash-lite-exp',
-                'gemini-2.0-flash-lite-preview-02-05' => 'gemini-2.0-flash-lite-preview-02-05',
-                'gemini-2.0-flash-lite-preview-02-05' => 'gemini-2.0-flash-lite-preview-02-05',
                 'gemini-2.0-flash' => 'gemini-2.0-flash',
             ],
         ],
@@ -383,7 +378,6 @@ class AIService
         $geminiMessages = $this->convertToGeminiFormat($messages);
 
         $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . config('services.gemini.api_key'),
             'Content-Type' => 'application/json',
         ])->post($this->providers['gemini']['base_url'] . '?key=' . config('services.gemini.api_key'), [
             'contents' => $geminiMessages,
