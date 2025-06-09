@@ -25,7 +25,7 @@ class StoreMessageRequest extends FormRequest
             // 'conversation_id' => 'required|exists:conversations,id',
             'content' => 'required|string',
             'model_name' => 'sometimes|string|max:100',
-            'model_provider' => 'sometimes|string|max:50|in:openai,anthropic,deepseek,gemini',
+            'model_provider' => 'sometimes|string|max:50|in:openai,anthropic,deepseek,gemini,mistral',
             'options' => 'sometimes|array',
             'options.temperature' => 'sometimes|numeric|between:0,2',
             'options.max_tokens' => 'sometimes|integer|min:1|max:4000',

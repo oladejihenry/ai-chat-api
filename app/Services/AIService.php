@@ -53,6 +53,13 @@ class AIService
                 'gemini-2.0-flash' => 'gemini-2.0-flash',
             ],
         ],
+
+        'mistral' => [
+            'base_url' => 'https://api.mistral.ai/v1',
+            'models' => [
+                'mistral-large-latest' => 'mistral-large-latest',
+            ],
+        ],
     ];
 
     /**
@@ -80,6 +87,7 @@ class AIService
                 'anthropic' => $this->callAnthropic($apiModel, $messages, $options),
                 'deepseek' => $this->callDeepSeek($apiModel, $messages, $options),
                 'gemini' => $this->callGemini($apiModel, $messages, $options),
+                'mistral' => $this->callMistral($apiModel, $messages, $options),
                 default => throw new \InvalidArgumentException("Unsupported provider: {$provider}")
             };
         } catch (\Exception $e) {
@@ -118,6 +126,7 @@ class AIService
                 'anthropic' => $this->streamAnthropic($apiModel, $messages, $options),
                 'deepseek' => $this->streamDeepSeek($apiModel, $messages, $options),
                 'gemini' => $this->streamGemini($apiModel, $messages, $options),
+                'mistral' => $this->streamMistral($apiModel, $messages, $options),
                 default => throw new \InvalidArgumentException("Unsupported provider: {$provider}")
             };
         } catch (\Exception $e) {
@@ -366,6 +375,32 @@ class AIService
     }
 
     /**
+     * Call Mistral API (non-streaming)
+     */
+    protected function callMistral(string $model, array $messages, array $options = []): array
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . config('services.mistral.api_key'),
+            'Content-Type' => 'application/json',
+        ])->post($this->providers['mistral']['base_url'] . '/chat/completions', [
+            'model' => $model,
+            'messages' => $messages,
+        ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Mistral API Error: ' . $response->body());
+        }
+
+        $data = $response->json();
+
+        return [
+            'content' => $data['choices'][0]['message']['content'],
+            'model' => $data['model'],
+            'usage' => $data['usage'] ?? null,
+        ];
+    }
+
+    /**
      * Stream Gemini API response
      */
     protected function streamGemini(string $model, array $messages, array $options = []): \Generator
@@ -412,6 +447,47 @@ class AIService
                 'error' => $e->getMessage()
             ]);
             return 'Gemini API Error: ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * Stream Mistral API response
+     */
+    protected function streamMistral(string $model, array $messages, array $options = []): \Generator
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . config('services.mistral.api_key'),
+            'Content-Type' => 'application/json',
+        ])->post($this->providers['mistral']['base_url'] . '/chat/completions', [
+            'model' => $model,
+            'messages' => $messages,
+            'max_tokens' => $options['max_tokens'] ?? 1000,
+            'temperature' => $options['temperature'] ?? 0.7,
+            'stream' => true,
+        ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Mistral API Error: ' . $response->body());
+        }
+
+        $body = $response->body();
+        $lines = explode("\n", $body);
+
+        foreach ($lines as $line) {
+            if (empty($line) || !str_starts_with($line, 'data: ')) {
+                continue;
+            }
+
+            $data = substr($line, 6); // Remove "data: " prefix
+
+            if ($data === '[DONE]') {
+                break;
+            }
+
+            $json = json_decode($data, true);
+            if ($json && isset($json['choices'][0]['delta']['content'])) {
+                yield $json['choices'][0]['delta']['content'];
+            }
         }
     }
 

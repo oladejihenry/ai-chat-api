@@ -55,5 +55,8 @@ return [
     'deepseek' => [
         'api_key' => env('DEEPSEEK_API_KEY'),
     ],
+    'mistral' => [
+        'api_key' => env('MISTRAL_API_KEY'),
+    ],
 
 ];
