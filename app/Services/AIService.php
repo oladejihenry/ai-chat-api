@@ -190,6 +190,12 @@ class AIService
      */
     protected function streamOpenAI(string $model, array $messages, array $options = []): \Generator
     {
+        Log::info('Streaming OpenAI API response', [
+            'model' => $model,
+            'message_count' => count($messages),
+            'has_images' => $this->messagesHaveImages($messages),
+        ]);
+
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . config('services.openai.api_key'),
             'Content-Type' => 'application/json',
@@ -202,6 +208,11 @@ class AIService
         ]);
 
         if (!$response->successful()) {
+            Log::error('OpenAI API Error', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'model' => $model,
+            ]);
             throw new \Exception('OpenAI API Error: ' . $response->body());
         }
 
@@ -225,6 +236,23 @@ class AIService
                 yield $json['choices'][0]['delta']['content'];
             }
         }
+    }
+
+    /**
+     * Check if messages contain images
+     */
+    protected function messagesHaveImages(array $messages): bool
+    {
+        foreach ($messages as $message) {
+            if (isset($message['content']) && is_array($message['content'])) {
+                foreach ($message['content'] as $content) {
+                    if (isset($content['type']) && $content['type'] === 'image_url') {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -351,14 +379,18 @@ class AIService
      */
     protected function callGemini(string $model, array $messages, array $options = []): array
     {
+        // Convert messages to Gemini format
+        $geminiMessages = $this->convertToGeminiFormat($messages);
+
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . config('services.gemini.api_key'),
             'Content-Type' => 'application/json',
-        ])->post($this->providers['gemini']['base_url'] . '/chat/completions', [
-            'model' => $model,
-            'messages' => $messages,
-            'max_tokens' => $options['max_tokens'] ?? 1000,
-            'temperature' => $options['temperature'] ?? 0.7,
+        ])->post($this->providers['gemini']['base_url'] . '?key=' . config('services.gemini.api_key'), [
+            'contents' => $geminiMessages,
+            'generationConfig' => [
+                'maxOutputTokens' => $options['max_tokens'] ?? 1000,
+                'temperature' => $options['temperature'] ?? 0.7,
+            ],
         ]);
 
         if (!$response->successful()) {
@@ -368,9 +400,9 @@ class AIService
         $data = $response->json();
 
         return [
-            'content' => $data['choices'][0]['message']['content'],
-            'model' => $data['model'],
-            'usage' => $data['usage'] ?? null,
+            'content' => $data['candidates'][0]['content']['parts'][0]['text'],
+            'model' => $model,
+            'usage' => $data['usageMetadata'] ?? null,
         ];
     }
 
@@ -385,6 +417,8 @@ class AIService
         ])->post($this->providers['mistral']['base_url'] . '/chat/completions', [
             'model' => $model,
             'messages' => $messages,
+            'max_tokens' => $options['max_tokens'] ?? 1000,
+            'temperature' => $options['temperature'] ?? 0.7,
         ]);
 
         if (!$response->successful()) {
@@ -401,52 +435,20 @@ class AIService
     }
 
     /**
-     * Stream Gemini API response
+     * Stream Gemini API response (simulated for now)
      */
     protected function streamGemini(string $model, array $messages, array $options = []): \Generator
     {
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . config('services.gemini.api_key'),
-                'Content-Type' => 'application/json',
-            ])->post($this->providers['gemini']['base_url'] . '?key=' . config('services.gemini.api_key'), [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $messages[0]['content']]
-                        ]
-                    ]
-                ]
-            ]);
+        // Gemini doesn't support streaming in the same way as OpenAI
+        // For now, we'll get the full response and simulate streaming
+        $response = $this->callGemini($model, $messages, $options);
+        $content = $response['content'];
 
-            if (!$response->successful()) {
-                throw new \Exception('Gemini API Error: ' . $response->body());
-            }
-
-            $body = $response->body();
-            $lines = explode("\n", $body);
-
-            foreach ($lines as $line) {
-                if (empty($line) || !str_starts_with($line, 'data: ')) {
-                    continue;
-                }
-
-                $data = substr($line, 6); // Remove "data: " prefix
-
-                if ($data === '[DONE]') {
-                    break;
-                }
-
-                $json = json_decode($data, true);
-                if ($json && isset($json['choices'][0]['delta']['content'])) {
-                    yield $json['choices'][0]['delta']['content'];
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Gemini API exception', [
-                'error' => $e->getMessage()
-            ]);
-            return 'Gemini API Error: ' . $e->getMessage();
+        // Simulate streaming by breaking content into words
+        $words = explode(' ', $content);
+        foreach ($words as $word) {
+            yield $word . ' ';
+            usleep(50000); // 50ms delay for realistic streaming effect
         }
     }
 
@@ -497,9 +499,93 @@ class AIService
     protected function convertToAnthropicFormat(array $messages): array
     {
         return array_map(function ($message) {
+            $content = $message['content'];
+
+            // Handle messages with images (convert from OpenAI format to Anthropic format)
+            if (is_array($content)) {
+                $anthropicContent = [];
+
+                foreach ($content as $item) {
+                    if ($item['type'] === 'text') {
+                        $anthropicContent[] = [
+                            'type' => 'text',
+                            'text' => $item['text']
+                        ];
+                    } elseif ($item['type'] === 'image_url') {
+                        // Convert OpenAI image format to Anthropic format
+                        $imageUrl = $item['image_url']['url'];
+
+                        // Extract mime type and base64 data
+                        if (preg_match('/^data:([^;]+);base64,(.+)$/', $imageUrl, $matches)) {
+                            $mimeType = $matches[1];
+                            $base64Data = $matches[2];
+
+                            $anthropicContent[] = [
+                                'type' => 'image',
+                                'source' => [
+                                    'type' => 'base64',
+                                    'media_type' => $mimeType,
+                                    'data' => $base64Data
+                                ]
+                            ];
+                        }
+                    }
+                }
+
+                $content = $anthropicContent;
+            }
+
             return [
                 'role' => $message['role'] === 'assistant' ? 'assistant' : 'user',
-                'content' => $message['content'],
+                'content' => $content,
+            ];
+        }, array_filter($messages, fn($msg) => $msg['role'] !== 'system'));
+    }
+
+    /**
+     * Convert OpenAI message format to Gemini format
+     */
+    protected function convertToGeminiFormat(array $messages): array
+    {
+        return array_map(function ($message) {
+            $content = $message['content'];
+            $parts = [];
+
+            // Handle messages with images (convert from OpenAI format to Gemini format)
+            if (is_array($content)) {
+                foreach ($content as $item) {
+                    if ($item['type'] === 'text') {
+                        $parts[] = [
+                            'text' => $item['text']
+                        ];
+                    } elseif ($item['type'] === 'image_url') {
+                        // Convert OpenAI image format to Gemini format
+                        $imageUrl = $item['image_url']['url'];
+
+                        // Extract mime type and base64 data
+                        if (preg_match('/^data:([^;]+);base64,(.+)$/', $imageUrl, $matches)) {
+                            $mimeType = $matches[1];
+                            $base64Data = $matches[2];
+
+                            $parts[] = [
+                                'inlineData' => [
+                                    'mimeType' => $mimeType,
+                                    'data' => $base64Data
+                                ]
+                            ];
+                        }
+                    }
+                }
+            } else {
+                // Simple text message
+                $parts[] = [
+                    'text' => $content
+                ];
+            }
+
+            return [
+                'role' => $message['role'] === 'assistant' ? 'model' : 'user',
+                'parts' => $parts,
             ];
         }, array_filter($messages, fn($msg) => $msg['role'] !== 'system'));
     }

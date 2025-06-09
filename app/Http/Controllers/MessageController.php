@@ -80,24 +80,22 @@ class MessageController extends Controller
         try {
             DB::beginTransaction();
 
-            // Store user message
+            // Process uploaded files if any
+            $imageData = [];
+            if ($request->hasFile('files')) {
+                $imageData = $this->processUploadedImages($request->file('files'));
+            }
+
+            // Store user message with image data
             $userMessage = $conversation->messages()->create([
                 'content' => $request->content,
                 'role' => 'user',
                 'model_name' => null,
+                'image_data' => !empty($imageData) ? json_encode($imageData) : null,
             ]);
 
             // Get conversation history for context
-            $messages = $conversation->messages()
-                ->orderBy('created_at', 'asc')
-                ->get()
-                ->map(function ($message) {
-                    return [
-                        'role' => $message->role,
-                        'content' => $message->content,
-                    ];
-                })
-                ->toArray();
+            $messages = $this->buildMessagesForAI($conversation, $request->content, $imageData);
 
             DB::commit();
 
@@ -152,6 +150,98 @@ class MessageController extends Controller
     }
 
     /**
+     * Process uploaded images and convert them to base64
+     */
+    protected function processUploadedImages(array $files): array
+    {
+        $imageData = [];
+
+        foreach ($files as $file) {
+            if ($file && $file->isValid()) {
+                $mimeType = $file->getMimeType();
+                $imageContent = base64_encode(file_get_contents($file->path()));
+
+                $imageData[] = [
+                    'type' => 'image_url',
+                    'image_url' => [
+                        'url' => "data:{$mimeType};base64,{$imageContent}"
+                    ]
+                ];
+
+                Log::info('Processed image', [
+                    'mime_type' => $mimeType,
+                    'size' => $file->getSize(),
+                    'original_name' => $file->getClientOriginalName(),
+                ]);
+            }
+        }
+
+        return $imageData;
+    }
+
+    /**
+     * Build messages array for AI with support for images
+     */
+    protected function buildMessagesForAI(Conversation $conversation, string $currentText, array $imageData = []): array
+    {
+        // Get conversation history
+        $messages = $conversation->messages()
+            ->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($message) {
+                // Handle text-only messages
+                if (empty($message->image_data)) {
+                    return [
+                        'role' => $message->role,
+                        'content' => $message->content,
+                    ];
+                }
+
+                // Handle messages with images
+                $content = [
+                    [
+                        'type' => 'text',
+                        'text' => $message->content,
+                    ]
+                ];
+
+                // Add images from stored data
+                $imageData = json_decode($message->image_data, true);
+                if ($imageData) {
+                    $content = array_merge($content, $imageData);
+                }
+
+                return [
+                    'role' => $message->role,
+                    'content' => $content,
+                ];
+            })
+            ->toArray();
+
+        // Handle the current message with images
+        if (!empty($imageData)) {
+            // Replace the last message (current user message) with proper format
+            $lastMessageIndex = count($messages) - 1;
+
+            $content = [
+                [
+                    'type' => 'text',
+                    'text' => $currentText,
+                ]
+            ];
+
+            $content = array_merge($content, $imageData);
+
+            $messages[$lastMessageIndex] = [
+                'role' => 'user',
+                'content' => $content,
+            ];
+        }
+
+        return $messages;
+    }
+
+    /**
      * Stream AI response to Next.js frontend
      */
     protected function streamAIResponse(
@@ -174,7 +264,8 @@ class MessageController extends Controller
                 echo "data: " . json_encode([
                     'status' => 'generating',
                     'model' => $modelName,
-                    'provider' => $modelProvider
+                    'provider' => $modelProvider,
+                    'has_images' => $this->messagesHaveImages($messages),
                 ]) . "\n\n";
                 ob_flush();
                 flush();
@@ -233,6 +324,23 @@ class MessageController extends Controller
             'Access-Control-Allow-Origin' => '*',
             'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
         ]);
+    }
+
+    /**
+     * Check if messages contain images
+     */
+    protected function messagesHaveImages(array $messages): bool
+    {
+        foreach ($messages as $message) {
+            if (isset($message['content']) && is_array($message['content'])) {
+                foreach ($message['content'] as $content) {
+                    if (isset($content['type']) && $content['type'] === 'image_url') {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
