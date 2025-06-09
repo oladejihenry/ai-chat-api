@@ -1,0 +1,16 @@
+what i want is to have a ai chat platform like 
+
+@https://t3.chat/ 
+
+that supports multi model
+
+i am using nextjs as my frontend with laravel sanctum
+
+i want to 
+
+1. chat with various llms (Implement support for multiple language models and providers)
+
+2. When user authenticates there chat are sync (User authentication with chat history synchronization)
+
+
+do not forget that i am using laravel as backend with santum api
