@@ -100,9 +100,9 @@ class MessageController extends Controller
             DB::commit();
 
             // Check if streaming is requested
-            if ($request->header('Accept') === 'text/event-stream' || $request->boolean('stream')) {
-                return $this->streamAIResponse($conversation, $messages, $request, $modelProvider, $modelName);
-            }
+            // if ($request->header('Accept') === 'text/event-stream' || $request->boolean('stream')) {
+            return $this->streamAIResponse($conversation, $messages, $request, $modelProvider, $modelName);
+            // }
 
             // Generate AI response (non-streaming) using the selected model
             $aiResponse = $this->aiService->generateResponse(
@@ -259,6 +259,12 @@ class MessageController extends Controller
             header('X-Accel-Buffering: no'); // Disable nginx buffering
 
             try {
+                // CREATE AND STORE USER MESSAGE FIRST
+                $userMessage = $conversation->messages()->create([
+                    'content' => $request->input('content'),
+                    'role' => 'user',
+                ]);
+
                 // Start streaming
                 echo "event: start\n";
                 echo "data: " . json_encode([
@@ -288,17 +294,18 @@ class MessageController extends Controller
                     }
                 }
 
-                // Store the complete AI response with the actual model used
+                // Store the complete AI response
                 $assistantMessage = $conversation->messages()->create([
                     'content' => $fullContent,
                     'role' => 'assistant',
-                    'model_name' => $modelName, // Store the model that was actually used
+                    'model_name' => $modelName,
                 ]);
 
-                // Send completion event
+                // Send completion event WITH BOTH MESSAGES
                 echo "event: complete\n";
                 echo "data: " . json_encode([
                     'message' => new MessageResource($assistantMessage),
+                    'user_message' => new MessageResource($userMessage), // ADD THIS!
                     'status' => 'completed',
                     'model_used' => [
                         'provider' => $modelProvider,

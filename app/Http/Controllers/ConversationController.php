@@ -130,6 +130,11 @@ class ConversationController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        //check if the conversation exists in the database
+        if (!$conversation) {
+            return response()->json(['message' => 'Conversation not found'], 200);
+        }
+
         $conversation->load(['messages' => function ($query) {
             $query->orderBy('created_at', 'asc');
         }]);

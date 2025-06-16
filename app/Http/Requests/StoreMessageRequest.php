@@ -29,7 +29,7 @@ class StoreMessageRequest extends FormRequest
             'options' => 'sometimes|array',
             'options.temperature' => 'sometimes|numeric|between:0,2',
             'options.max_tokens' => 'sometimes|integer|min:1|max:4000',
-            'stream' => 'sometimes|boolean',
+            // 'stream' => 'sometimes|boolean',
             'files' => 'sometimes|array|max:5', // Allow up to 5 files
             'files.*' => 'file|mimes:jpeg,jpg,png,gif,webp|max:10240', // 10MB max per file
             // 'role' => 'required|in:user,assistant',

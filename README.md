@@ -1,8 +1,8 @@
-# AI.chat - Multi-AI Chat Platform
+# Zephfichat - Multi-AI Chat Platform
 
 A modern, multi-model AI chat platform built with **Next.js 15**, **Laravel**, and **TypeScript**. Chat with multiple AI models in a beautiful, responsive interface with conversation history, real-time typing indicators, and seamless model switching.
 
-![AI.chat Demo](https://via.placeholder.com/800x400/10B981/FFFFFF?text=AI.chat+-+Multi-AI+Chat+Platform)
+![Zephfichat Demo](https://youtu.be/b6oltw1ICSI)
 
 ## ✨ Features
 
@@ -47,8 +47,8 @@ A modern, multi-model AI chat platform built with **Next.js 15**, **Laravel**, a
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/aichat.git
-cd aichat
+git clone https://github.com/oladejihenry/ai-chat-clone.git
+cd ai-chat-clone
 
 # Install dependencies
 pnpm install
@@ -66,8 +66,9 @@ pnpm dev
 ### Backend Installation
 
 ```bash
-# Navigate to backend directory
-cd backend
+# clone the repository
+git clone https://github.com/oladejihenry/ai-chat-api.git
+cd ai-chat-api
 
 # Install PHP dependencies
 composer install
@@ -82,7 +83,7 @@ php artisan key:generate
 # DB_CONNECTION=mysql
 # DB_HOST=127.0.0.1
 # DB_PORT=3306
-# DB_DATABASE=aichat
+# DB_DATABASE=zephfichat
 # DB_USERNAME=root
 # DB_PASSWORD=
 
@@ -95,7 +96,7 @@ php artisan serve
 
 ## 🤖 AI Model Setup
 
-AI.chat supports multiple AI providers. Configure the models you want to use by obtaining API keys and updating your environment variables.
+Zephfichat supports multiple AI providers. Configure the models you want to use by obtaining API keys and updating your environment variables.
 
 ### Supported Models
 
@@ -187,7 +188,7 @@ Configure your Laravel `.env` file:
 
 ```bash
 # Application
-APP_NAME="AI.chat API"
+APP_NAME="Zephfichat API"
 APP_ENV=local
 APP_KEY=base64:your-generated-key
 APP_DEBUG=true
@@ -197,7 +198,7 @@ APP_URL=http://localhost:8000
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=aichat
+DB_DATABASE=zephfichat
 DB_USERNAME=root
 DB_PASSWORD=
 
@@ -322,7 +323,7 @@ This project is available under multiple licenses. Choose the one that best fits
 ```
 MIT License
 
-Copyright (c) 2024 AI.chat
+Copyright (c) 2024 Zephfichat
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -350,7 +351,7 @@ Apache License
 Version 2.0, January 2004
 http://www.apache.org/licenses/
 
-Copyright 2024 AI.chat
+Copyright 2024 Zephfichat
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -370,7 +371,7 @@ limitations under the License.
 ```
 BSD 3-Clause License
 
-Copyright (c) 2024, AI.chat
+Copyright (c) 2024, Zephfichat
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
