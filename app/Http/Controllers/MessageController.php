@@ -258,6 +258,14 @@ class MessageController extends Controller
             header('Connection: keep-alive');
             header('X-Accel-Buffering: no'); // Disable nginx buffering
 
+
+            $safeFlush = function () {
+                if (ob_get_level()) {
+                    ob_flush();
+                }
+                flush();
+            };
+
             try {
                 // CREATE AND STORE USER MESSAGE FIRST
                 $userMessage = $conversation->messages()->create([
@@ -273,8 +281,7 @@ class MessageController extends Controller
                     'provider' => $modelProvider,
                     'has_images' => $this->messagesHaveImages($messages),
                 ]) . "\n\n";
-                ob_flush();
-                flush();
+                $safeFlush();
 
                 $fullContent = '';
                 $chunks = $this->generateStreamingResponse(
@@ -289,8 +296,7 @@ class MessageController extends Controller
                         $fullContent .= $chunk;
                         echo "event: chunk\n";
                         echo "data: " . json_encode(['content' => $chunk]) . "\n\n";
-                        ob_flush();
-                        flush();
+                        $safeFlush();
                     }
                 }
 
@@ -322,8 +328,7 @@ class MessageController extends Controller
                 echo "data: " . json_encode(['error' => $e->getMessage()]) . "\n\n";
             }
 
-            ob_flush();
-            flush();
+            $safeFlush();
         }, 200, [
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache',
